@@ -1,13 +1,9 @@
 "use strict";
 
-// Adaptador previsto para la futura API REST. La maqueta no realiza peticiones.
-const API_CONFIG = Object.freeze({ baseUrl: "", enabled: false });
-
-const TEST_USERS = Object.freeze({
-  admin: { password: "1234", role: "Administrador", destination: "admin.html" },
-  secretario: { password: "1234", role: "Secretario", destination: "comite.html" },
-  presidenta: { password: "1234", role: "Presidenta", destination: "comite.html" },
-  tesorero: { password: "1234", role: "Tesorero", destination: "comite.html" }
+// Punto único de configuración para la API de Google Apps Script.
+const API_CONFIG = Object.freeze({
+  baseUrl: "https://script.google.com/macros/s/AKfycbwIK_AT69ramxxdG_ho4psUdSFd1-W1KSpOcnydrGDLG3zD5bmeIrmcF-ZHSpfOt1_-/exec",
+  timeoutMs: 15000
 });
 
 const SIGNERS = ["Secretario", "Presidenta", "Tesorero"];
@@ -20,56 +16,165 @@ let expenses = [
   { id: "2026-0000", provider: "Transportes Ralún", amount: 45000, category: "Administración", description: "Traslado de materiales comunitarios.", deadline: "2026-05-30", status: "Pagado", signatures: { Secretario: true, Presidenta: true, Tesorero: true } }
 ];
 
-function generarTokenSesion() {
-  const randomPart = (globalThis.crypto?.getRandomValues)
-    ? Array.from(crypto.getRandomValues(new Uint32Array(2)), value => value.toString(36)).join("")
-    : Math.random().toString(36).slice(2) + Date.now().toString(36);
-  return `token_${randomPart}`;
+async function requestApi(params, signal) {
+  const body = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => body.set(key, value));
+
+  const response = await fetch(API_CONFIG.baseUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+    },
+    body,
+    cache: "no-store",
+    redirect: "follow",
+    signal
+  });
+
+  if (!response.ok) {
+    throw new Error(`La API respondió con HTTP ${response.status}.`);
+  }
+
+  const responseText = await response.text();
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    throw new Error("La API no devolvió una respuesta JSON válida.");
+  }
 }
 
-function login(event) {
+async function login(event) {
   event?.preventDefault();
   const userInput = document.querySelector("#usuario");
   const passwordInput = document.querySelector("#contrasena");
   const message = document.querySelector("#loginMessage");
-  const username = userInput.value.trim().toLowerCase();
-  const account = TEST_USERS[username];
+  const submitButton = event?.currentTarget?.querySelector('[type="submit"]');
+  const username = userInput.value.trim();
+  const password = passwordInput.value;
 
   message.className = "form-message";
   message.textContent = "";
-  if (!username || !passwordInput.value) {
+  if (!username || !password) {
     showFormMessage(message, "Completa el usuario y la contraseña.", "error");
     (!username ? userInput : passwordInput).focus();
     return;
   }
-  if (!account || account.password !== passwordInput.value) {
-    showFormMessage(message, "Usuario o contraseña incorrectos.", "error");
-    passwordInput.value = "";
-    passwordInput.focus();
-    return;
-  }
 
-  localStorage.setItem("usuario", username);
-  localStorage.setItem("rol", account.role);
-  localStorage.setItem("tokenSesion", generarTokenSesion());
-  showFormMessage(message, "Acceso correcto. Redirigiendo…", "success");
-  window.setTimeout(() => window.location.assign(account.destination), 350);
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
+  setLoginLoading(submitButton, true);
+
+  try {
+    const data = await requestApi({ accion: "login", usuario: username, clave: password }, controller.signal);
+
+    if (data?.estado !== "OK") {
+      clearSession();
+      passwordInput.value = "";
+      passwordInput.focus();
+      showFormMessage(message, "Usuario o contraseña incorrectos.", "error");
+      return;
+    }
+
+    const allowedRoles = ["Administrador", "Secretario", "Presidenta", "Tesorero"];
+    if (!data.usuario || !data.token || !allowedRoles.includes(data.rol)) {
+      throw new Error("La respuesta de inicio de sesión está incompleta.");
+    }
+
+    localStorage.setItem("usuario", String(data.usuario));
+    localStorage.setItem("rol", data.rol);
+    localStorage.setItem("tokenSesion", String(data.token));
+    showFormMessage(message, "Acceso correcto. Redirigiendo…", "success");
+
+    const destination = data.rol === "Administrador" ? "admin.html" : "comite.html";
+    window.setTimeout(() => window.location.assign(destination), 350);
+  } catch (error) {
+    clearSession();
+    const errorMessage = error.name === "AbortError"
+      ? "El servidor tardó demasiado en responder. Intenta nuevamente."
+      : "No fue posible conectar con el servidor. Intenta nuevamente.";
+    showFormMessage(message, errorMessage, "error");
+    console.error("Error de inicio de sesión:", error);
+  } finally {
+    window.clearTimeout(timeoutId);
+    setLoginLoading(submitButton, false);
+  }
 }
 
-function logout() {
+function clearSession() {
   ["usuario", "rol", "tokenSesion"].forEach(key => localStorage.removeItem(key));
+}
+
+function setLoginLoading(button, isLoading) {
+  if (!button) return;
+  button.disabled = isLoading;
+  button.setAttribute("aria-busy", String(isLoading));
+  button.innerHTML = isLoading
+    ? "Ingresando…"
+    : 'Ingresar <span aria-hidden="true">→</span>';
+}
+
+async function logout() {
+  const token = localStorage.getItem("tokenSesion");
+  clearSession();
+
+  if (token) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
+    try {
+      await requestApi({ accion: "logout", token }, controller.signal);
+    } catch (error) {
+      console.warn("No fue posible cerrar la sesión en el servidor:", error);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
   window.location.replace("index.html");
 }
 
-function verificarSesion() {
+async function verificarSesion() {
   const token = localStorage.getItem("tokenSesion");
   const user = localStorage.getItem("usuario");
   const role = localStorage.getItem("rol");
   if (!token || !user || !role) {
-    logout();
+    clearSession();
+    window.location.replace("index.html");
     return false;
   }
-  return true;
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
+  try {
+    const data = await requestApi({ accion: "validarSesion", token }, controller.signal);
+    if (data?.estado !== "OK" || !data.usuario || !data.rol) {
+      clearSession();
+      window.location.replace("index.html");
+      return false;
+    }
+
+    localStorage.setItem("usuario", String(data.usuario));
+    localStorage.setItem("rol", String(data.rol));
+
+    const currentPage = document.body.dataset.page;
+    if (currentPage === "admin" && data.rol !== "Administrador") {
+      window.location.replace("comite.html");
+      return false;
+    }
+    if (currentPage === "comite" && data.rol === "Administrador") {
+      window.location.replace("admin.html");
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("No fue posible validar la sesión:", error);
+    clearSession();
+    window.location.replace("index.html");
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function getExpensesByStatus(status) {
@@ -264,7 +369,7 @@ function showToast(text, isError = false) {
   window.setTimeout(() => toast.remove(), 3200);
 }
 
-function initializePage() {
+async function initializePage() {
   const page = document.body.dataset.page;
   if (page === "login") {
     document.getElementById("loginForm").addEventListener("submit", login);
@@ -277,7 +382,7 @@ function initializePage() {
     });
     return;
   }
-  if (!verificarSesion()) return;
+  if (!await verificarSesion()) return;
   fillSessionHeader();
   document.querySelectorAll('[data-action="logout"]').forEach(button => button.addEventListener("click", logout));
 
@@ -301,4 +406,4 @@ function initializePage() {
 document.addEventListener("DOMContentLoaded", initializePage);
 
 // Funciones expuestas para facilitar la sustitución por llamadas fetch() en la integración futura.
-Object.assign(window, { login, logout, generarTokenSesion, verificarSesion, mostrarPendientes, mostrarAprobados, mostrarHistorico, crearEgreso, API_CONFIG });
+Object.assign(window, { login, logout, verificarSesion, mostrarPendientes, mostrarAprobados, mostrarHistorico, crearEgreso, API_CONFIG });
