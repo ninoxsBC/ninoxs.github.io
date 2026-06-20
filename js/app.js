@@ -2,11 +2,19 @@
 
 // Punto único de configuración para la API de Google Apps Script.
 const API_CONFIG = Object.freeze({
-  baseUrl: "https://script.google.com/macros/s/AKfycbxye5wvWf7a4gDdhkRmgBKFmR105U3RuY0GYUWs_bEp3eMtzO09GtoxVcuBUs6S34Nx/exec",
-  timeoutMs: 15000
+  baseUrl: "https://script.google.com/macros/s/AKfycbzhfFgoXYbwc7oLrOTsQzFOps9J8aYJUHKqeW9MXuD1sKMtVfRnhwVZUuKwB1Jb686m/exec",
+  timeoutMs: 90000
 });
 
 const SIGNERS = ["Secretario", "Presidenta", "Tesorero"];
+const USER_ROLES = ["Administrador", "Secretario", "Presidenta", "Tesorero", "GestorUsuarios"];
+const ROLE_LABELS = Object.freeze({
+  Administrador: "Administrador de egresos",
+  Secretario: "Secretario",
+  Presidenta: "Presidenta",
+  Tesorero: "Tesorero",
+  GestorUsuarios: "Gestor de usuarios"
+});
 
 // Datos efímeros: se reinician cada vez que se recarga la página.
 let expenses = [
@@ -15,6 +23,7 @@ let expenses = [
   { id: "2026-0003", provider: "Ferretería del Lago", amount: 86390, category: "Mejoras", description: "Materiales para reparación de cerco perimetral.", deadline: "2026-06-20", status: "Aprobado", signatures: { Secretario: true, Presidenta: true, Tesorero: true } },
   { id: "2026-0000", provider: "Transportes Ralún", amount: 45000, category: "Administración", description: "Traslado de materiales comunitarios.", deadline: "2026-05-30", status: "Pagado", signatures: { Secretario: true, Presidenta: true, Tesorero: true } }
 ];
+let managedUsers = [];
 
 async function requestApi(params, signal) {
   const body = new URLSearchParams();
@@ -42,6 +51,30 @@ async function requestApi(params, signal) {
   } catch {
     throw new Error("La API no devolvió una respuesta JSON válida.");
   }
+}
+
+async function authenticatedRequest(action, params = {}) {
+  const token = localStorage.getItem("tokenSesion");
+  if (!token) throw new Error("No existe una sesión activa.");
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
+  try {
+    const data = await requestApi({ accion: action, token, ...params }, controller.signal);
+    if (data?.codigo === "SESION_INVALIDA") {
+      clearSession();
+      window.location.replace("index.html");
+      throw new Error("La sesión expiró.");
+    }
+    return data;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function destinationForRole(role) {
+  if (role === "Administrador") return "admin.html";
+  if (role === "GestorUsuarios") return "usuarios.html";
+  return "comite.html";
 }
 
 async function login(event) {
@@ -76,17 +109,18 @@ async function login(event) {
       return;
     }
 
-    const allowedRoles = ["Administrador", "Secretario", "Presidenta", "Tesorero"];
-    if (!data.usuario || !data.token || !allowedRoles.includes(data.rol)) {
+    if (!data.usuario || !data.token || !USER_ROLES.includes(data.rol)) {
       throw new Error("La respuesta de inicio de sesión está incompleta.");
     }
 
     localStorage.setItem("usuario", String(data.usuario));
+    localStorage.setItem("nombre", String(data.nombre || data.usuario));
     localStorage.setItem("rol", data.rol);
     localStorage.setItem("tokenSesion", String(data.token));
+    localStorage.setItem("requiereCambioClave", data.requiereCambioClave ? "SI" : "NO");
     showFormMessage(message, "Acceso correcto. Redirigiendo…", "success");
 
-    const destination = data.rol === "Administrador" ? "admin.html" : "comite.html";
+    const destination = data.requiereCambioClave ? "perfil.html?cambio=obligatorio" : destinationForRole(data.rol);
     window.setTimeout(() => window.location.assign(destination), 350);
   } catch (error) {
     clearSession();
@@ -102,7 +136,7 @@ async function login(event) {
 }
 
 function clearSession() {
-  ["usuario", "rol", "tokenSesion"].forEach(key => localStorage.removeItem(key));
+  ["usuario", "nombre", "rol", "tokenSesion", "requiereCambioClave"].forEach(key => localStorage.removeItem(key));
 }
 
 function setLoginLoading(button, isLoading) {
@@ -154,15 +188,18 @@ async function verificarSesion() {
     }
 
     localStorage.setItem("usuario", String(data.usuario));
+    localStorage.setItem("nombre", String(data.nombre || data.usuario));
     localStorage.setItem("rol", String(data.rol));
+    localStorage.setItem("requiereCambioClave", data.requiereCambioClave ? "SI" : "NO");
 
     const currentPage = document.body.dataset.page;
-    if (currentPage === "admin" && data.rol !== "Administrador") {
-      window.location.replace("comite.html");
+    if (data.requiereCambioClave && currentPage !== "perfil") {
+      window.location.replace("perfil.html?cambio=obligatorio");
       return false;
     }
-    if (currentPage === "comite" && data.rol === "Administrador") {
-      window.location.replace("admin.html");
+    const expectedPage = data.rol === "Administrador" ? "admin" : data.rol === "GestorUsuarios" ? "usuarios" : "comite";
+    if (currentPage !== "perfil" && currentPage !== expectedPage) {
+      window.location.replace(destinationForRole(data.rol));
       return false;
     }
 
@@ -328,10 +365,237 @@ function openExpenseDialog(expense) {
 
 function fillSessionHeader() {
   const user = localStorage.getItem("usuario") || "Usuario";
+  const name = localStorage.getItem("nombre") || user;
   const role = localStorage.getItem("rol") || "";
-  document.getElementById("sessionUser").textContent = user;
-  document.getElementById("sessionRole").textContent = role;
-  document.getElementById("sessionAvatar").textContent = user.charAt(0).toUpperCase();
+  document.getElementById("sessionUser").textContent = name;
+  document.getElementById("sessionRole").textContent = ROLE_LABELS[role] || role;
+  document.getElementById("sessionAvatar").textContent = name.charAt(0).toUpperCase();
+}
+
+function fillRoleSelect(select) {
+  select.replaceChildren();
+  USER_ROLES.forEach(role => {
+    const option = document.createElement("option");
+    option.value = role;
+    option.textContent = ROLE_LABELS[role];
+    select.append(option);
+  });
+}
+
+function setButtonLoading(button, loading, label = "Procesando…") {
+  if (!button) return;
+  if (loading) {
+    button.dataset.originalContent = button.innerHTML;
+    button.textContent = label;
+  } else if (button.dataset.originalContent) {
+    button.innerHTML = button.dataset.originalContent;
+    delete button.dataset.originalContent;
+  }
+  button.disabled = loading;
+}
+
+function resetMessage(element) {
+  element.className = element.classList.contains("field--full") ? "form-message field--full" : "form-message";
+  element.textContent = "";
+}
+
+async function loadProfile() {
+  const data = await authenticatedRequest("obtenerPerfil");
+  if (data.estado !== "OK") throw new Error(data.mensaje || "No se pudo cargar el perfil.");
+  const profile = data.perfil;
+  document.getElementById("profileName").value = profile.nombre;
+  document.getElementById("profileUsername").value = profile.usuario;
+  document.getElementById("profileRole").value = ROLE_LABELS[profile.rol] || profile.rol;
+  const destination = destinationForRole(profile.rol);
+  document.getElementById("profileHomeLink").href = destination;
+  document.getElementById("backToPanel").href = destination;
+  const required = profile.requiereCambioClave;
+  document.getElementById("passwordRequiredAlert").hidden = !required;
+  document.getElementById("backToPanel").hidden = required;
+  if (required) document.getElementById("newProfilePassword").focus();
+}
+
+async function updateProfile(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.getElementById("profileMessage");
+  const button = form.querySelector('[type="submit"]');
+  resetMessage(message);
+  if (!form.checkValidity()) return form.reportValidity();
+  const values = new FormData(form);
+  setButtonLoading(button, true, "Guardando…");
+  try {
+    const data = await authenticatedRequest("actualizarMiPerfil", {
+      nombre: String(values.get("nombre")).trim(),
+      usuario: String(values.get("usuario")).trim()
+    });
+    if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible actualizar el perfil.", "error");
+    if (data.sesionInvalidada) return finishInvalidatedSession(message, data.mensaje);
+    localStorage.setItem("nombre", data.nombre);
+    localStorage.setItem("usuario", data.usuario);
+    fillSessionHeader();
+    showFormMessage(message, "Perfil actualizado correctamente.", "success");
+  } catch (error) {
+    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function changePassword(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.getElementById("passwordMessage");
+  const button = form.querySelector('[type="submit"]');
+  const current = document.getElementById("currentPassword").value;
+  const next = document.getElementById("newProfilePassword").value;
+  const confirmation = document.getElementById("confirmProfilePassword").value;
+  resetMessage(message);
+  if (!form.checkValidity()) return form.reportValidity();
+  if (next !== confirmation) return showFormMessage(message, "Las contraseñas nuevas no coinciden.", "error");
+
+  setButtonLoading(button, true, "Actualizando…");
+  try {
+    const data = await authenticatedRequest("cambiarMiClave", { claveActual: current, claveNueva: next });
+    if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible cambiar la contraseña.", "error");
+    finishInvalidatedSession(message, data.mensaje);
+  } catch (error) {
+    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function finishInvalidatedSession(message, text) {
+  showFormMessage(message, text || "Cambio guardado. Ingresa nuevamente.", "success");
+  clearSession();
+  window.setTimeout(() => window.location.replace("index.html"), 1200);
+}
+
+async function loadUsers() {
+  const tbody = document.getElementById("userRows");
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="5">Cargando usuarios…</td></tr>';
+  const data = await authenticatedRequest("listarUsuarios");
+  if (data.estado !== "OK") throw new Error(data.mensaje || "No se pudieron cargar los usuarios.");
+  managedUsers = data.usuarios || [];
+  renderUsers();
+}
+
+function renderUsers() {
+  const tbody = document.getElementById("userRows");
+  tbody.replaceChildren();
+  managedUsers.forEach(user => {
+    const status = user.bloqueado
+      ? '<span class="badge badge--blocked">Bloqueado</span>'
+      : user.activo === "SI"
+        ? '<span class="badge badge--approved">Activo</span>'
+        : '<span class="badge badge--inactive">Inactivo</span>';
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><div class="user-identity"><strong>${escapeHtml(user.nombre)}</strong><span>${escapeHtml(user.usuario)}${user.requiereCambioClave ? " · Cambio de clave pendiente" : ""}</span></div></td>
+      <td>${escapeHtml(ROLE_LABELS[user.rol] || user.rol)}</td>
+      <td>${status}</td>
+      <td>${user.ultimoAcceso ? formatDateTime(user.ultimoAcceso) : "Nunca"}</td>
+      <td><div class="table-actions"><button class="button button--ghost" type="button" data-user-action="edit" data-id="${escapeHtml(user.id)}">Editar</button><button class="button button--ghost" type="button" data-user-action="reset" data-id="${escapeHtml(user.id)}">Clave</button></div></td>`;
+    tbody.append(row);
+  });
+  document.getElementById("usersEmpty").hidden = managedUsers.length > 0;
+  document.getElementById("userRecordCount").textContent = `${managedUsers.length} ${managedUsers.length === 1 ? "registro" : "registros"}`;
+  document.getElementById("metricUsersTotal").textContent = managedUsers.length;
+  document.getElementById("metricUsersActive").textContent = managedUsers.filter(user => user.activo === "SI").length;
+  document.getElementById("metricUsersBlocked").textContent = managedUsers.filter(user => user.bloqueado).length;
+}
+
+async function createUser(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.getElementById("createUserMessage");
+  const button = form.querySelector('[type="submit"]');
+  resetMessage(message);
+  if (!form.checkValidity()) return form.reportValidity();
+  const values = Object.fromEntries(new FormData(form));
+  setButtonLoading(button, true, "Creando…");
+  try {
+    const data = await authenticatedRequest("crearUsuario", values);
+    if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible crear el usuario.", "error");
+    form.reset();
+    showFormMessage(message, data.mensaje, "success");
+    await loadUsers();
+  } catch (error) {
+    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function openUserDialog(action, id) {
+  const user = managedUsers.find(item => item.id === id);
+  if (!user) return;
+  if (action === "edit") {
+    document.getElementById("editUserId").value = user.id;
+    document.getElementById("editName").value = user.nombre;
+    document.getElementById("editUsername").value = user.usuario;
+    document.getElementById("editRole").value = user.rol;
+    document.getElementById("editActive").value = user.activo;
+    resetMessage(document.getElementById("editUserMessage"));
+    document.getElementById("editUserDialog").showModal();
+  }
+  if (action === "reset") {
+    document.getElementById("resetUserId").value = user.id;
+    document.getElementById("resetPasswordUser").textContent = `${user.nombre} · ${user.usuario}`;
+    document.getElementById("resetPasswordForm").reset();
+    document.getElementById("resetUserId").value = user.id;
+    resetMessage(document.getElementById("resetPasswordMessage"));
+    document.getElementById("resetPasswordDialog").showModal();
+  }
+}
+
+async function updateManagedUser(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.getElementById("editUserMessage");
+  const button = form.querySelector('[type="submit"]');
+  resetMessage(message);
+  if (!form.checkValidity()) return form.reportValidity();
+  setButtonLoading(button, true, "Guardando…");
+  try {
+    const data = await authenticatedRequest("actualizarUsuario", Object.fromEntries(new FormData(form)));
+    if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible actualizar el usuario.", "error");
+    document.getElementById("editUserDialog").close();
+    showToast(data.mensaje);
+    await loadUsers();
+  } catch (error) {
+    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function resetManagedPassword(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.getElementById("resetPasswordMessage");
+  const button = form.querySelector('[type="submit"]');
+  resetMessage(message);
+  if (!form.checkValidity()) return form.reportValidity();
+  setButtonLoading(button, true, "Restableciendo…");
+  try {
+    const data = await authenticatedRequest("restablecerClave", Object.fromEntries(new FormData(form)));
+    if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible restablecer la contraseña.", "error");
+    document.getElementById("resetPasswordDialog").close();
+    showToast(data.mensaje);
+    await loadUsers();
+  } catch (error) {
+    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
 function statusBadge(status) {
@@ -400,6 +664,37 @@ async function initializePage() {
     dialog.addEventListener("click", event => {
       if (event.target.dataset.action === "close-dialog" || event.target === dialog) dialog.close();
     });
+  }
+  if (page === "perfil") {
+    document.getElementById("profileForm").addEventListener("submit", updateProfile);
+    document.getElementById("passwordForm").addEventListener("submit", changePassword);
+    try {
+      await loadProfile();
+    } catch (error) {
+      showToast("No fue posible cargar el perfil.", true);
+    }
+  }
+  if (page === "usuarios") {
+    fillRoleSelect(document.getElementById("newRole"));
+    fillRoleSelect(document.getElementById("editRole"));
+    document.getElementById("createUserForm").addEventListener("submit", createUser);
+    document.getElementById("editUserForm").addEventListener("submit", updateManagedUser);
+    document.getElementById("resetPasswordForm").addEventListener("submit", resetManagedPassword);
+    document.getElementById("userRows").addEventListener("click", event => {
+      const button = event.target.closest("button[data-user-action]");
+      if (button) openUserDialog(button.dataset.userAction, button.dataset.id);
+    });
+    document.querySelectorAll("#editUserDialog, #resetPasswordDialog").forEach(dialog => {
+      dialog.addEventListener("click", event => {
+        if (event.target.dataset.action === "close-dialog" || event.target === dialog) dialog.close();
+      });
+    });
+    try {
+      await loadUsers();
+    } catch (error) {
+      document.getElementById("userRows").innerHTML = '<tr class="loading-row"><td colspan="5">No fue posible cargar los usuarios.</td></tr>';
+      showToast("No fue posible cargar los usuarios.", true);
+    }
   }
 }
 

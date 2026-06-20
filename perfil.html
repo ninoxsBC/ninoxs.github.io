@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Perfil de usuario del Sistema de Egresos Ralún">
+  <title>Mi perfil | Egresos Ralún</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/app.js" defer></script>
+</head>
+<body data-page="perfil">
+  <header class="app-header">
+    <a class="app-brand" id="profileHomeLink" href="index.html" aria-label="Volver al panel">
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M10 32.5V19l14-9 14 9v13.5"/><path d="M15 30c4-4 7-4 11 0s7 4 11 0"/><path d="M15 36c4-4 7-4 11 0s7 4 11 0"/></svg></div>
+      <div><strong>Egresos Ralún</strong><span>Mi cuenta</span></div>
+    </a>
+    <div class="header-user">
+      <div class="user-copy"><strong id="sessionUser">Usuario</strong><span id="sessionRole">Rol</span></div>
+      <div class="avatar" id="sessionAvatar" aria-hidden="true">U</div>
+      <button class="button button--ghost logout-button" type="button" data-action="logout"><span>Salir</span> ↗</button>
+    </div>
+  </header>
+
+  <main class="page-container profile-container">
+    <section class="page-heading">
+      <div><span class="eyebrow">Cuenta personal</span><h1>Mi perfil</h1><p>Actualiza tus datos y protege el acceso a tu cuenta.</p></div>
+      <a id="backToPanel" class="button button--ghost" href="index.html">Volver al panel</a>
+    </section>
+
+    <div id="passwordRequiredAlert" class="security-alert" hidden>
+      <strong>Debes cambiar tu contraseña</strong>
+      <span>Estás usando una clave temporal. Define una nueva para continuar al sistema.</span>
+    </div>
+
+    <section class="profile-grid">
+      <div class="panel profile-panel">
+        <div class="panel-heading"><div><h2>Datos personales</h2><p>Cambiar el usuario cerrará tu sesión actual.</p></div></div>
+        <form id="profileForm" class="profile-form" novalidate>
+          <div class="field"><label for="profileName">Nombre</label><input id="profileName" name="nombre" type="text" maxlength="80" required></div>
+          <div class="field"><label for="profileUsername">Usuario</label><input id="profileUsername" name="usuario" type="text" minlength="3" maxlength="40" required></div>
+          <div class="field"><label for="profileRole">Rol</label><input id="profileRole" type="text" disabled></div>
+          <div id="profileMessage" class="form-message" role="status"></div>
+          <div class="form-actions"><button class="button button--primary" type="submit">Guardar perfil</button></div>
+        </form>
+      </div>
+
+      <div class="panel profile-panel" id="passwordPanel">
+        <div class="panel-heading"><div><h2>Cambiar contraseña</h2><p>La nueva clave cerrará todas tus sesiones.</p></div></div>
+        <form id="passwordForm" class="profile-form" novalidate>
+          <div class="field"><label for="currentPassword">Contraseña actual</label><input id="currentPassword" name="claveActual" type="password" autocomplete="current-password" required></div>
+          <div class="field"><label for="newProfilePassword">Nueva contraseña</label><input id="newProfilePassword" name="claveNueva" type="password" minlength="10" autocomplete="new-password" required><small>Mínimo 10 caracteres, con mayúscula, minúscula y número.</small></div>
+          <div class="field"><label for="confirmProfilePassword">Confirmar contraseña</label><input id="confirmProfilePassword" type="password" minlength="10" autocomplete="new-password" required></div>
+          <div id="passwordMessage" class="form-message" role="status"></div>
+          <div class="form-actions"><button class="button button--primary" type="submit">Cambiar contraseña</button></div>
+        </form>
+      </div>
+    </section>
+  </main>
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Gestión de usuarios del Sistema de Egresos Ralún">
+  <title>Gestión de usuarios | Egresos Ralún</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/app.js" defer></script>
+</head>
+<body data-page="usuarios">
+  <header class="app-header">
+    <a class="app-brand" href="usuarios.html" aria-label="Inicio de gestión de usuarios">
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M10 32.5V19l14-9 14 9v13.5"/><path d="M15 30c4-4 7-4 11 0s7 4 11 0"/><path d="M15 36c4-4 7-4 11 0s7 4 11 0"/></svg></div>
+      <div><strong>Egresos Ralún</strong><span>Gestión de accesos</span></div>
+    </a>
+    <div class="header-user">
+      <div class="user-copy"><strong id="sessionUser">Usuario</strong><span id="sessionRole">Rol</span></div>
+      <a class="avatar" id="sessionAvatar" href="perfil.html" title="Mi perfil" aria-label="Abrir mi perfil">G</a>
+      <button class="button button--ghost logout-button" type="button" data-action="logout"><span>Salir</span> ↗</button>
+    </div>
+  </header>
+
+  <main class="page-container">
+    <section class="page-heading">
+      <div><span class="eyebrow">Accesos y seguridad</span><h1>Gestión de usuarios</h1><p>Crea cuentas y administra sus permisos de acceso.</p></div>
+      <a class="button button--ghost" href="perfil.html">Mi perfil</a>
+    </section>
+
+    <section class="metrics" aria-label="Resumen de usuarios">
+      <article class="metric-card"><span class="metric-icon metric-icon--blue">♙</span><div><span>Total usuarios</span><strong id="metricUsersTotal">0</strong></div></article>
+      <article class="metric-card"><span class="metric-icon metric-icon--green">✓</span><div><span>Activos</span><strong id="metricUsersActive">0</strong></div></article>
+      <article class="metric-card"><span class="metric-icon metric-icon--amber">⌑</span><div><span>Bloqueados</span><strong id="metricUsersBlocked">0</strong></div></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading"><div><h2>Crear usuario</h2><p>La contraseña será temporal y deberá cambiarse en el primer ingreso.</p></div><span class="panel-icon">＋</span></div>
+      <form id="createUserForm" class="expense-form" novalidate>
+        <div class="field"><label for="newName">Nombre</label><input id="newName" name="nombre" type="text" maxlength="80" required></div>
+        <div class="field"><label for="newUsername">Usuario</label><input id="newUsername" name="usuario" type="text" minlength="3" maxlength="40" required></div>
+        <div class="field"><label for="newRole">Rol</label><select id="newRole" name="rol" required></select></div>
+        <div class="field field--span-2"><label for="newPassword">Contraseña temporal</label><input id="newPassword" name="claveTemporal" type="password" minlength="8" autocomplete="new-password" required><small>8 caracteres como mínimo, con mayúscula, minúscula y número.</small></div>
+        <div id="createUserMessage" class="form-message field--full" role="status" aria-live="polite"></div>
+        <div class="form-actions field--full"><button class="button button--primary" type="submit">Crear usuario <span>→</span></button></div>
+      </form>
+    </section>
+
+    <section class="panel table-panel">
+      <div class="panel-heading"><div><h2>Usuarios registrados</h2><p>Los cambios de rol, usuario o estado cierran sus sesiones activas.</p></div><span class="record-count" id="userRecordCount">0 registros</span></div>
+      <div class="table-scroll">
+        <table class="users-table"><thead><tr><th>Nombre / usuario</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr></thead><tbody id="userRows"></tbody></table>
+      </div>
+      <div id="usersEmpty" class="empty-state" hidden>No hay usuarios para mostrar.</div>
+    </section>
+  </main>
+
+  <dialog id="editUserDialog" class="expense-dialog">
+    <form id="editUserForm" novalidate>
+      <div class="dialog-heading"><div><span class="eyebrow">Gestión de cuenta</span><h2>Editar usuario</h2></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Cerrar">×</button></div>
+      <div class="dialog-form">
+        <input id="editUserId" name="idUsuario" type="hidden">
+        <div class="field"><label for="editName">Nombre</label><input id="editName" name="nombre" type="text" maxlength="80" required></div>
+        <div class="field"><label for="editUsername">Usuario</label><input id="editUsername" name="usuario" type="text" minlength="3" maxlength="40" required></div>
+        <div class="field"><label for="editRole">Rol</label><select id="editRole" name="rol" required></select></div>
+        <div class="field"><label for="editActive">Estado</label><select id="editActive" name="activo"><option value="SI">Activo</option><option value="NO">Inactivo</option></select></div>
+        <div id="editUserMessage" class="form-message field--full" role="status"></div>
+      </div>
+      <div class="dialog-actions"><button class="button button--ghost" type="button" data-action="close-dialog">Cancelar</button><button class="button button--primary" type="submit">Guardar cambios</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="resetPasswordDialog" class="expense-dialog">
+    <form id="resetPasswordForm" novalidate>
+      <div class="dialog-heading"><div><span class="eyebrow">Seguridad</span><h2>Restablecer contraseña</h2><p id="resetPasswordUser" class="muted"></p></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Cerrar">×</button></div>
+      <div class="dialog-form">
+        <input id="resetUserId" name="idUsuario" type="hidden">
+        <div class="field field--full"><label for="resetPassword">Nueva contraseña temporal</label><input id="resetPassword" name="claveTemporal" type="password" minlength="8" autocomplete="new-password" required><small>El usuario deberá cambiarla al iniciar sesión.</small></div>
+        <div id="resetPasswordMessage" class="form-message field--full" role="status"></div>
+      </div>
+      <div class="dialog-actions"><button class="button button--ghost" type="button" data-action="close-dialog">Cancelar</button><button class="button button--primary" type="submit">Restablecer</button></div>
+    </form>
+  </dialog>
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+</body>
+</html>

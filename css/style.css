@@ -199,3 +199,30 @@ tbody tr:hover { background: #fafcff; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* User management and personal profile */
+.field small { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+.users-table td { vertical-align: middle; }
+.user-identity strong, .user-identity span { display: block; }
+.user-identity strong { color: var(--navy); }
+.user-identity span { color: var(--muted); font-size: 11px; }
+.table-actions { display: flex; gap: 6px; }
+.table-actions .button { min-height: 32px; padding: 0 10px; font-size: 11px; }
+.badge--inactive { color: #6f7887; background: #edf0f4; }
+.badge--blocked { color: var(--red); background: var(--red-soft); }
+.dialog-form { display: grid; grid-template-columns: 1fr; gap: 15px; padding: 20px 22px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 9px; padding: 15px 22px 20px; border-top: 1px solid var(--line); }
+.dialog-heading p { margin: 4px 0 0; font-size: 12px; }
+.profile-container { max-width: 960px; }
+.profile-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.profile-panel { margin-top: 0; }
+.profile-form { display: grid; gap: 17px; padding: 20px; }
+.security-alert { display: flex; flex-direction: column; gap: 3px; margin-bottom: 20px; border: 1px solid #efd49a; border-radius: 11px; padding: 14px 17px; color: #84510a; background: var(--amber-soft); }
+.security-alert strong { font-size: 14px; }
+.security-alert span { font-size: 12px; }
+.loading-row td { padding: 32px; color: var(--muted); text-align: center; }
+
+@media (min-width: 620px) {
+  .dialog-form { grid-template-columns: repeat(2, 1fr); }
+  .profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
