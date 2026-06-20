@@ -1,13 +1,61 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="es">
 <head>
-  <title>Egresos Ralun</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Acceso al Sistema de Egresos de la Comunidad Ralún">
+  <title>Iniciar sesión | Egresos Ralún</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/app.js" defer></script>
 </head>
-<body>
+<body data-page="login" class="login-page">
+  <main class="login-shell">
+    <section class="login-brand" aria-label="Sistema de Egresos Comunidad Ralún">
+      <div class="brand-mark brand-mark--large" aria-hidden="true">
+        <svg viewBox="0 0 48 48" role="img"><path d="M10 32.5V19l14-9 14 9v13.5"/><path d="M15 30c4-4 7-4 11 0s7 4 11 0"/><path d="M15 36c4-4 7-4 11 0s7 4 11 0"/></svg>
+      </div>
+      <div>
+        <span class="eyebrow">Comunidad Ralún</span>
+        <h1>Gestión clara para cada egreso.</h1>
+        <p>Controla solicitudes, revisa aprobaciones y mantén el estado de las firmas en un solo lugar.</p>
+      </div>
+      <div class="brand-feature"><span>✓</span> Flujo de aprobación trazable</div>
+    </section>
 
-<h1>Prueba desde VS Code 123</h1>
+    <section class="login-panel">
+      <div class="login-card">
+        <div class="mobile-logo">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48"><path d="M10 32.5V19l14-9 14 9v13.5"/><path d="M15 30c4-4 7-4 11 0s7 4 11 0"/><path d="M15 36c4-4 7-4 11 0s7 4 11 0"/></svg>
+          </div>
+          <strong>Comunidad Ralún</strong>
+        </div>
+        <span class="eyebrow">Acceso seguro</span>
+        <h2>Sistema de Egresos</h2>
+        <p class="muted">Ingresa tus credenciales para continuar.</p>
 
-<p>GitHub Pages funcionando.</p>
-
+        <form id="loginForm" class="form-stack" novalidate>
+          <div class="field">
+            <label for="usuario">Usuario</label>
+            <div class="input-with-icon">
+              <span aria-hidden="true">♙</span>
+              <input id="usuario" name="usuario" type="text" autocomplete="username" placeholder="Ingresa tu usuario" required>
+            </div>
+          </div>
+          <div class="field">
+            <label for="contrasena">Contraseña</label>
+            <div class="input-with-icon">
+              <span aria-hidden="true">⌑</span>
+              <input id="contrasena" name="contrasena" type="password" autocomplete="current-password" placeholder="Ingresa tu contraseña" required>
+              <button class="password-toggle" type="button" id="togglePassword" aria-label="Mostrar contraseña">Ver</button>
+            </div>
+          </div>
+          <div id="loginMessage" class="form-message" role="status" aria-live="polite"></div>
+          <button class="button button--primary button--wide" type="submit">Ingresar <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="login-help">Acceso exclusivo para miembros autorizados del comité.</p>
+      </div>
+    </section>
+  </main>
 </body>
 </html>

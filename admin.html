@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Administración de egresos de la Comunidad Ralún">
+  <title>Administración | Egresos Ralún</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/app.js" defer></script>
+</head>
+<body data-page="admin">
+  <header class="app-header">
+    <a class="app-brand" href="admin.html" aria-label="Inicio de administración">
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M10 32.5V19l14-9 14 9v13.5"/><path d="M15 30c4-4 7-4 11 0s7 4 11 0"/><path d="M15 36c4-4 7-4 11 0s7 4 11 0"/></svg></div>
+      <div><strong>Egresos Ralún</strong><span>Portal de gestión</span></div>
+    </a>
+    <div class="header-user">
+      <div class="user-copy"><strong id="sessionUser">Usuario</strong><span id="sessionRole">Rol</span></div>
+      <div class="avatar" id="sessionAvatar" aria-hidden="true">A</div>
+      <button class="button button--ghost logout-button" type="button" data-action="logout" title="Cerrar sesión"><span>Salir</span> ↗</button>
+    </div>
+  </header>
+
+  <main class="page-container">
+    <section class="page-heading">
+      <div><span class="eyebrow">Panel de control</span><h1>Administración</h1><p>Crea egresos y consulta el estado general de las solicitudes.</p></div>
+      <div class="status-pill"><span class="status-dot"></span> Sesión activa</div>
+    </section>
+
+    <section class="metrics" aria-label="Resumen de egresos">
+      <article class="metric-card"><span class="metric-icon metric-icon--blue">▤</span><div><span>Total egresos</span><strong id="metricTotal">0</strong></div></article>
+      <article class="metric-card"><span class="metric-icon metric-icon--amber">◷</span><div><span>Pendientes</span><strong id="metricPending">0</strong></div></article>
+      <article class="metric-card"><span class="metric-icon metric-icon--green">✓</span><div><span>Aprobados</span><strong id="metricApproved">0</strong></div></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading"><div><h2>Crear nuevo egreso</h2><p>Completa los antecedentes de la solicitud.</p></div><span class="panel-icon">＋</span></div>
+      <form id="expenseForm" class="expense-form" novalidate>
+        <div class="field"><label for="numeroEgreso">Número egreso</label><input id="numeroEgreso" name="numeroEgreso" type="text" placeholder="Ej. 2026-0004" required></div>
+        <div class="field field--span-2"><label for="proveedor">Proveedor</label><input id="proveedor" name="proveedor" type="text" placeholder="Nombre o razón social" required></div>
+        <div class="field"><label for="monto">Monto</label><div class="input-prefix"><span>$</span><input id="monto" name="monto" type="number" min="1" step="1" placeholder="0" required></div></div>
+        <div class="field"><label for="categoria">Categoría</label><select id="categoria" name="categoria" required><option value="">Seleccionar</option><option>Mantención</option><option>Servicios básicos</option><option>Administración</option><option>Mejoras</option><option>Otros</option></select></div>
+        <div class="field"><label for="fechaLimite">Fecha límite</label><input id="fechaLimite" name="fechaLimite" type="date" required></div>
+        <div class="field field--full"><label for="descripcion">Descripción</label><textarea id="descripcion" name="descripcion" rows="3" placeholder="Describe el motivo del egreso" required></textarea></div>
+        <div id="expenseMessage" class="form-message field--full" role="status" aria-live="polite"></div>
+        <div class="form-actions field--full"><button class="button button--primary" type="submit">Crear egreso <span>→</span></button></div>
+      </form>
+    </section>
+
+    <section class="panel table-panel">
+      <div class="panel-heading"><div><h2>Egresos recientes</h2><p>Resumen de solicitudes y firmas requeridas.</p></div><span class="record-count" id="recordCount">0 registros</span></div>
+      <div class="table-scroll">
+        <table><thead><tr><th>ID</th><th>Proveedor</th><th>Monto</th><th>Estado</th><th>Firmas faltantes</th></tr></thead><tbody id="adminExpenseRows"></tbody></table>
+      </div>
+      <div id="adminEmpty" class="empty-state" hidden>No hay egresos para mostrar.</div>
+    </section>
+  </main>
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+</body>
+</html>

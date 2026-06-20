@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Panel de aprobación del Comité de la Comunidad Ralún">
+  <title>Panel Comité | Egresos Ralún</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/app.js" defer></script>
+</head>
+<body data-page="comite">
+  <header class="app-header">
+    <a class="app-brand" href="comite.html" aria-label="Inicio del panel comité">
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M10 32.5V19l14-9 14 9v13.5"/><path d="M15 30c4-4 7-4 11 0s7 4 11 0"/><path d="M15 36c4-4 7-4 11 0s7 4 11 0"/></svg></div>
+      <div><strong>Egresos Ralún</strong><span>Portal de gestión</span></div>
+    </a>
+    <div class="header-user">
+      <div class="user-copy"><strong id="sessionUser">Usuario</strong><span id="sessionRole">Rol</span></div>
+      <div class="avatar" id="sessionAvatar" aria-hidden="true">U</div>
+      <button class="button button--ghost logout-button" type="button" data-action="logout"><span>Salir</span> ↗</button>
+    </div>
+  </header>
+
+  <main class="page-container page-container--wide">
+    <section class="page-heading">
+      <div><span class="eyebrow">Flujo de aprobación</span><h1>Panel Comité</h1><p>Revisa solicitudes y gestiona las firmas pendientes.</p></div>
+      <div class="status-pill"><span class="status-dot"></span> Actualizado ahora</div>
+    </section>
+    <section class="kanban" aria-label="Tablero de egresos">
+      <div class="kanban-column kanban-column--pending">
+        <header><div><span class="column-dot"></span><h2>Pendientes</h2></div><span class="column-count" id="pendingCount">0</span></header>
+        <div id="pendingList" class="card-list"></div>
+      </div>
+      <div class="kanban-column kanban-column--approved">
+        <header><div><span class="column-dot"></span><h2>Aprobados</h2></div><span class="column-count" id="approvedCount">0</span></header>
+        <div id="approvedList" class="card-list"></div>
+      </div>
+      <div class="kanban-column kanban-column--history">
+        <header><div><span class="column-dot"></span><h2>Histórico</h2></div><span class="column-count" id="historyCount">0</span></header>
+        <div id="historyList" class="card-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="expenseDialog" class="expense-dialog">
+    <div class="dialog-heading"><div><span class="eyebrow">Detalle de solicitud</span><h2 id="dialogTitle">Egreso</h2></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Cerrar">×</button></div>
+    <div id="dialogContent"></div>
+  </dialog>
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+</body>
+</html>
