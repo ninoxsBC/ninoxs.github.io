@@ -105,7 +105,10 @@ async function login(event) {
       clearSession();
       passwordInput.value = "";
       passwordInput.focus();
-      showFormMessage(message, "Usuario o contraseña incorrectos.", "error");
+      const serverMessage = data?.codigo === "CREDENCIALES_INVALIDAS" || !data?.codigo
+        ? "Usuario o contraseña incorrectos."
+        : data.mensaje || "El servidor no pudo procesar el inicio de sesión.";
+      showFormMessage(message, serverMessage, "error");
       return;
     }
 
