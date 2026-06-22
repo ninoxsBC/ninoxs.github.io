@@ -6,7 +6,7 @@
   <meta name="description" content="Gestión de usuarios del Sistema de Egresos Ralún">
   <title>Gestión de usuarios | Egresos Ralún</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="js/app.js?v=20260621-egresos" defer></script>
+  <script src="js/app.js?v=20260621-correos" defer></script>
 </head>
 <body data-page="usuarios">
   <header class="app-header">
@@ -38,6 +38,7 @@
       <form id="createUserForm" class="expense-form" novalidate>
         <div class="field"><label for="newName">Nombre</label><input id="newName" name="nombre" type="text" maxlength="80" required></div>
         <div class="field"><label for="newUsername">Usuario</label><input id="newUsername" name="usuario" type="text" minlength="3" maxlength="40" required></div>
+        <div class="field"><label for="newEmail">Correo electrónico</label><input id="newEmail" name="email" type="email" maxlength="254" placeholder="nombre@dominio.cl" required><small>Se utilizará para las notificaciones del sistema.</small></div>
         <div class="field"><label for="newRole">Rol</label><select id="newRole" name="rol" required></select></div>
         <div class="field field--span-2"><label for="newPassword">Contraseña temporal</label><input id="newPassword" name="claveTemporal" type="password" minlength="8" autocomplete="new-password" required><small>8 caracteres como mínimo, con mayúscula, minúscula y número.</small></div>
         <div id="createUserMessage" class="form-message field--full" role="status" aria-live="polite"></div>
@@ -61,6 +62,7 @@
         <input id="editUserId" name="idUsuario" type="hidden">
         <div class="field"><label for="editName">Nombre</label><input id="editName" name="nombre" type="text" maxlength="80" required></div>
         <div class="field"><label for="editUsername">Usuario</label><input id="editUsername" name="usuario" type="text" minlength="3" maxlength="40" required></div>
+        <div class="field field--full"><label for="editEmail">Correo electrónico</label><input id="editEmail" name="email" type="email" maxlength="254" placeholder="nombre@dominio.cl"><small>Las notificaciones se enviarán sólo si la cuenta está activa.</small></div>
         <div class="field"><label for="editRole">Rol</label><select id="editRole" name="rol" required></select></div>
         <div class="field"><label for="editActive">Estado</label><select id="editActive" name="activo"><option value="SI">Activo</option><option value="NO">Inactivo</option></select></div>
         <div id="editUserMessage" class="form-message field--full" role="status"></div>

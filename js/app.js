@@ -2,7 +2,7 @@
 
 // Punto único de configuración para la API de Google Apps Script.
 const API_CONFIG = Object.freeze({
-  baseUrl: "https://script.google.com/macros/s/AKfycbzlwxOgAwocyDfB2uIocltHG1eSgyKEpVh_hqtWBAdSnC26hK4Bn66OLs7dwxDyeuqe/exec",
+  baseUrl: "https://script.google.com/macros/s/AKfycbxkC9ZLneuPn_zQyomW1RzZZQwaEjXy5ZjGXdlWVOZVhwD-JCWm9Wb70QdoVwVS13Qm/exec",
   timeoutMs: 90000
 });
 
@@ -592,7 +592,7 @@ function renderUsers() {
         : '<span class="badge badge--inactive">Inactivo</span>';
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><div class="user-identity"><strong>${escapeHtml(user.nombre)}</strong><span>${escapeHtml(user.usuario)}${user.requiereCambioClave ? " · Cambio de clave pendiente" : ""}</span></div></td>
+      <td><div class="user-identity"><strong>${escapeHtml(user.nombre)}</strong><span>${escapeHtml(user.usuario)}${user.email ? ` · ${escapeHtml(user.email)}` : " · Sin email"}${user.requiereCambioClave ? " · Cambio de clave pendiente" : ""}</span></div></td>
       <td>${escapeHtml(ROLE_LABELS[user.rol] || user.rol)}</td>
       <td>${status}</td>
       <td>${user.ultimoAcceso ? formatDateTime(user.ultimoAcceso) : "Nunca"}</td>
@@ -635,6 +635,7 @@ function openUserDialog(action, id) {
     document.getElementById("editUserId").value = user.id;
     document.getElementById("editName").value = user.nombre;
     document.getElementById("editUsername").value = user.usuario;
+    document.getElementById("editEmail").value = user.email || "";
     document.getElementById("editRole").value = user.rol;
     document.getElementById("editActive").value = user.activo;
     resetMessage(document.getElementById("editUserMessage"));
