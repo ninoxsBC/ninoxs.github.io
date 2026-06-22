@@ -158,6 +158,7 @@ tbody tr:hover { background: #fafcff; }
 .signature-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .signature { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 4px 6px; color: #8993a3; background: #f1f3f6; font-size: 10px; }
 .signature--done { color: var(--green); background: var(--green-soft); }
+.signature--rejected { color: var(--red); background: var(--red-soft); }
 .card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 15px; }
 .card-actions .button { min-height: 35px; padding: 0 9px; font-size: 11px; }
 .card-actions .button--detail { grid-column: 1 / -1; border-color: var(--line); color: #566277; background: #fff; }
@@ -221,6 +222,11 @@ tbody tr:hover { background: #fafcff; }
 .security-alert strong { font-size: 14px; }
 .security-alert span { font-size: 12px; }
 .loading-row td { padding: 32px; color: var(--muted); text-align: center; }
+.table-edit-expense { min-height: 32px; padding: 0 11px; font-size: 11px; }
+.decision-history { display: grid; gap: 9px; }
+.decision-row { display: grid; grid-template-columns: minmax(90px, 1fr) auto; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
+.decision-row strong { font-size: 12px; }
+.decision-row p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 12px; }
 
 @media (min-width: 620px) {
   .dialog-form { grid-template-columns: repeat(2, 1fr); }

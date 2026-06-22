@@ -2,7 +2,7 @@
 
 // Punto único de configuración para la API de Google Apps Script.
 const API_CONFIG = Object.freeze({
-  baseUrl: "https://script.google.com/macros/s/AKfycbzhfFgoXYbwc7oLrOTsQzFOps9J8aYJUHKqeW9MXuD1sKMtVfRnhwVZUuKwB1Jb686m/exec",
+  baseUrl: "https://script.google.com/macros/s/AKfycbzlwxOgAwocyDfB2uIocltHG1eSgyKEpVh_hqtWBAdSnC26hK4Bn66OLs7dwxDyeuqe/exec",
   timeoutMs: 90000
 });
 
@@ -16,13 +16,7 @@ const ROLE_LABELS = Object.freeze({
   GestorUsuarios: "Gestor de usuarios"
 });
 
-// Datos efímeros: se reinician cada vez que se recarga la página.
-let expenses = [
-  { id: "2026-0001", provider: "Servicios El Arrayán", amount: 50000, category: "Mantención", description: "Reparación de luminarias en acceso principal.", deadline: "2026-06-25", status: "Pendiente", signatures: { Secretario: true, Presidenta: true, Tesorero: false } },
-  { id: "2026-0002", provider: "Aguas Patagonia SpA", amount: 128400, category: "Servicios básicos", description: "Pago mensual por suministro de agua comunitaria.", deadline: "2026-06-28", status: "Pendiente", signatures: { Secretario: true, Presidenta: false, Tesorero: false } },
-  { id: "2026-0003", provider: "Ferretería del Lago", amount: 86390, category: "Mejoras", description: "Materiales para reparación de cerco perimetral.", deadline: "2026-06-20", status: "Aprobado", signatures: { Secretario: true, Presidenta: true, Tesorero: true } },
-  { id: "2026-0000", provider: "Transportes Ralún", amount: 45000, category: "Administración", description: "Traslado de materiales comunitarios.", deadline: "2026-05-30", status: "Pagado", signatures: { Secretario: true, Presidenta: true, Tesorero: true } }
-];
+let expenses = [];
 let managedUsers = [];
 
 async function requestApi(params, signal) {
@@ -218,19 +212,27 @@ async function verificarSesion() {
 }
 
 function getExpensesByStatus(status) {
-  return expenses.filter(expense => status.includes(expense.status));
+  return expenses.filter(expense => status.includes(expense.estado));
 }
 
 function mostrarPendientes() {
-  renderCardList("pendingList", getExpensesByStatus(["Pendiente"]), "pendingCount");
+  renderCardList("pendingList", getExpensesByStatus(["PENDIENTE"]), "pendingCount");
 }
 
 function mostrarAprobados() {
-  renderCardList("approvedList", getExpensesByStatus(["Aprobado"]), "approvedCount");
+  renderCardList("approvedList", getExpensesByStatus(["APROBADO"]), "approvedCount");
 }
 
 function mostrarHistorico() {
-  renderCardList("historyList", getExpensesByStatus(["Pagado", "Rechazado"]), "historyCount");
+  renderCardList("historyList", getExpensesByStatus(["RECHAZADO"]), "historyCount");
+}
+
+async function loadExpenses() {
+  const data = await authenticatedRequest("listarEgresos");
+  if (data.estado !== "OK") throw new Error(data.mensaje || "No fue posible cargar los egresos.");
+  expenses = data.egresos || [];
+  if (document.body.dataset.page === "admin") renderAdminTable();
+  if (document.body.dataset.page === "comite") renderCommittee();
 }
 
 function renderCardList(containerId, list, countId) {
@@ -251,57 +253,51 @@ function renderCardList(containerId, list, countId) {
 function createExpenseCard(expense) {
   const card = document.createElement("article");
   card.className = "expense-card";
-  const canDecide = expense.status === "Pendiente";
-  const signatures = SIGNERS.map(signer =>
-    `<span class="signature ${expense.signatures[signer] ? "signature--done" : ""}">${expense.signatures[signer] ? "✓" : "□"} ${escapeHtml(signer)}</span>`
-  ).join("");
+  const signatures = SIGNERS.map(signer => {
+    const decision = expense.decisiones.find(item => item.rol === signer);
+    const modifier = decision?.decision === "APROBADO" ? "signature--done" : decision?.decision === "RECHAZADO" ? "signature--rejected" : "";
+    const symbol = decision?.decision === "APROBADO" ? "✓" : decision?.decision === "RECHAZADO" ? "×" : "□";
+    return `<span class="signature ${modifier}" title="${decision?.motivo ? escapeHtml(decision.motivo) : ""}">${symbol} ${escapeHtml(signer)}</span>`;
+  }).join("");
   card.innerHTML = `
     <div class="expense-card__top">
-      <div><span class="expense-id">EGRESO #${escapeHtml(expense.id)}</span><h3 title="${escapeHtml(expense.provider)}">${escapeHtml(expense.provider)}</h3></div>
-      <strong class="expense-amount">${formatCurrency(expense.amount)}</strong>
+      <div><span class="expense-id">EGRESO #${escapeHtml(expense.numero)} · V${expense.version}</span><h3 title="${escapeHtml(expense.proveedor)}">${escapeHtml(expense.proveedor)}</h3></div>
+      <strong class="expense-amount">${formatCurrency(expense.monto)}</strong>
     </div>
-    <div class="expense-meta"><span>${escapeHtml(expense.category)}</span><span>Vence ${formatDate(expense.deadline)}</span></div>
+    <div class="expense-meta"><span>${escapeHtml(expense.categoria)}</span><span>Vence ${formatDate(expense.fechaLimite)}</span></div>
     <div class="signatures-label">Firmas</div><div class="signature-list">${signatures}</div>
     <div class="card-actions">
-      ${canDecide ? `<button class="button button--success" type="button" data-action="approve" data-id="${escapeHtml(expense.id)}">Aprobar</button><button class="button button--danger" type="button" data-action="reject" data-id="${escapeHtml(expense.id)}">Rechazar</button>` : ""}
-      <button class="button button--detail" type="button" data-action="detail" data-id="${escapeHtml(expense.id)}">Ver detalle</button>
+      ${expense.puedeFirmar ? `<button class="button button--success" type="button" data-action="approve" data-id="${escapeHtml(expense.numero)}">Aprobar</button><button class="button button--danger" type="button" data-action="reject" data-id="${escapeHtml(expense.numero)}">Rechazar</button>` : ""}
+      <button class="button button--detail" type="button" data-action="detail" data-id="${escapeHtml(expense.numero)}">Ver detalle</button>
     </div>`;
   return card;
 }
 
-function crearEgreso(event) {
+async function crearEgreso(event) {
   event?.preventDefault();
   const form = document.getElementById("expenseForm");
   const message = document.getElementById("expenseMessage");
-  const data = new FormData(form);
-  const id = String(data.get("numeroEgreso") || "").trim().replace(/^#/, "");
-  const amount = Number(data.get("monto"));
+  const button = form.querySelector('[type="submit"]');
   message.className = "form-message field--full";
   message.textContent = "";
-
   if (!form.checkValidity()) {
     form.reportValidity();
     showFormMessage(message, "Completa todos los campos obligatorios.", "error");
     return;
   }
-  if (expenses.some(expense => expense.id.toLowerCase() === id.toLowerCase())) {
-    showFormMessage(message, "Ya existe un egreso con ese número.", "error");
-    document.getElementById("numeroEgreso").focus();
-    return;
+  setButtonLoading(button, true, "Creando…");
+  try {
+    const data = await authenticatedRequest("crearEgreso", Object.fromEntries(new FormData(form)));
+    if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible crear el egreso.", "error");
+    form.reset();
+    setDefaultDeadline();
+    showFormMessage(message, data.mensaje, "success");
+    await loadExpenses();
+  } catch (error) {
+    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+  } finally {
+    setButtonLoading(button, false);
   }
-  expenses.unshift({
-    id,
-    provider: String(data.get("proveedor")).trim(),
-    amount,
-    category: String(data.get("categoria")),
-    description: String(data.get("descripcion")).trim(),
-    deadline: String(data.get("fechaLimite")),
-    status: "Pendiente",
-    signatures: { Secretario: false, Presidenta: false, Tesorero: false }
-  });
-  form.reset();
-  showFormMessage(message, `Egreso #${id} creado. Se conservará hasta recargar la página.`, "success");
-  renderAdminTable();
 }
 
 function renderAdminTable() {
@@ -309,39 +305,77 @@ function renderAdminTable() {
   if (!tbody) return;
   tbody.replaceChildren();
   expenses.forEach(expense => {
-    const missing = SIGNERS.filter(signer => !expense.signatures[signer]);
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>#${escapeHtml(expense.id)}</td><td>${escapeHtml(expense.provider)}</td><td>${formatCurrency(expense.amount)}</td><td>${statusBadge(expense.status)}</td><td>${missing.length ? escapeHtml(missing.join(", ")) : "—"}</td>`;
+    tr.innerHTML = `<td>#${escapeHtml(expense.numero)} <span class="muted">V${expense.version}</span></td><td>${escapeHtml(expense.proveedor)}</td><td>${formatCurrency(expense.monto)}</td><td>${statusBadge(expense.estado)}</td><td>${expense.firmasFaltantes.length ? escapeHtml(expense.firmasFaltantes.join(", ")) : "—"}</td><td>${expense.puedeEditar ? `<button class="button button--ghost table-edit-expense" type="button" data-edit-expense="${escapeHtml(expense.numero)}">Editar</button>` : "—"}</td>`;
     tbody.append(tr);
   });
   document.getElementById("recordCount").textContent = `${expenses.length} ${expenses.length === 1 ? "registro" : "registros"}`;
   document.getElementById("adminEmpty").hidden = expenses.length > 0;
   document.getElementById("metricTotal").textContent = expenses.length;
-  document.getElementById("metricPending").textContent = getExpensesByStatus(["Pendiente"]).length;
-  document.getElementById("metricApproved").textContent = getExpensesByStatus(["Aprobado", "Pagado"]).length;
+  document.getElementById("metricPending").textContent = getExpensesByStatus(["PENDIENTE"]).length;
+  document.getElementById("metricApproved").textContent = getExpensesByStatus(["APROBADO"]).length;
 }
 
-function handleCommitteeAction(action, id) {
-  const expense = expenses.find(item => item.id === id);
+async function handleCommitteeAction(action, id, button) {
+  const expense = expenses.find(item => item.numero === id);
   if (!expense) return;
   if (action === "detail") {
     openExpenseDialog(expense);
     return;
   }
-  if (expense.status !== "Pendiente") return;
   if (action === "reject") {
-    expense.status = "Rechazado";
-    renderCommittee();
-    showToast(`Egreso #${id} rechazado.`, true);
+    document.getElementById("rejectExpenseNumber").value = expense.numero;
+    document.getElementById("rejectExpenseVersion").value = expense.version;
+    document.getElementById("rejectExpenseLabel").textContent = `Egreso #${expense.numero} · Versión ${expense.version}`;
+    document.getElementById("rejectReason").value = "";
+    resetMessage(document.getElementById("rejectMessage"));
+    document.getElementById("rejectDialog").showModal();
     return;
   }
   if (action === "approve") {
-    const role = localStorage.getItem("rol");
-    if (SIGNERS.includes(role)) expense.signatures[role] = true;
-    const allSigned = SIGNERS.every(signer => expense.signatures[signer]);
-    if (allSigned) expense.status = "Aprobado";
-    renderCommittee();
-    showToast(allSigned ? `Egreso #${id} aprobado por el comité.` : `Firma de ${role} registrada para el egreso #${id}.`);
+    setButtonLoading(button, true, "Firmando…");
+    try {
+      const data = await authenticatedRequest("registrarDecision", {
+        numeroEgreso: expense.numero,
+        version: expense.version,
+        decision: "APROBADO",
+        motivo: ""
+      });
+      if (data.estado !== "OK") return showToast(data.mensaje || "No fue posible registrar la firma.", true);
+      showToast(data.mensaje);
+      await loadExpenses();
+    } catch (error) {
+      showToast("No fue posible conectar con el servidor.", true);
+    } finally {
+      setButtonLoading(button, false);
+    }
+  }
+}
+
+async function submitRejection(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.getElementById("rejectMessage");
+  const button = form.querySelector('[type="submit"]');
+  resetMessage(message);
+  if (!form.checkValidity()) return form.reportValidity();
+  setButtonLoading(button, true, "Registrando…");
+  try {
+    const values = Object.fromEntries(new FormData(form));
+    const data = await authenticatedRequest("registrarDecision", {
+      numeroEgreso: values.numeroEgreso,
+      version: values.version,
+      decision: "RECHAZADO",
+      motivo: values.motivo
+    });
+    if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible registrar el rechazo.", "error");
+    document.getElementById("rejectDialog").close();
+    showToast(data.mensaje);
+    await loadExpenses();
+  } catch (error) {
+    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+  } finally {
+    setButtonLoading(button, false);
   }
 }
 
@@ -353,17 +387,80 @@ function renderCommittee() {
 
 function openExpenseDialog(expense) {
   const dialog = document.getElementById("expenseDialog");
-  document.getElementById("dialogTitle").textContent = `Egreso #${expense.id}`;
+  document.getElementById("dialogTitle").textContent = `Egreso #${expense.numero}`;
   document.getElementById("dialogContent").innerHTML = `<div class="detail-grid">
-    <div class="detail-item"><span>Proveedor</span><strong>${escapeHtml(expense.provider)}</strong></div>
-    <div class="detail-item"><span>Monto</span><strong>${formatCurrency(expense.amount)}</strong></div>
-    <div class="detail-item"><span>Categoría</span><strong>${escapeHtml(expense.category)}</strong></div>
-    <div class="detail-item"><span>Fecha límite</span><strong>${formatDate(expense.deadline)}</strong></div>
-    <div class="detail-item"><span>Estado</span>${statusBadge(expense.status)}</div>
-    <div class="detail-item detail-item--full"><span>Descripción</span><strong>${escapeHtml(expense.description)}</strong></div>
-    <div class="detail-item detail-item--full"><span>Firmas</span><div class="signature-list">${SIGNERS.map(signer => `<span class="signature ${expense.signatures[signer] ? "signature--done" : ""}">${expense.signatures[signer] ? "✓" : "□"} ${signer}</span>`).join("")}</div></div>
+    <div class="detail-item"><span>Proveedor</span><strong>${escapeHtml(expense.proveedor)}</strong></div>
+    <div class="detail-item"><span>Monto</span><strong>${formatCurrency(expense.monto)}</strong></div>
+    <div class="detail-item"><span>Categoría</span><strong>${escapeHtml(expense.categoria)}</strong></div>
+    <div class="detail-item"><span>Fecha límite</span><strong>${formatDate(expense.fechaLimite)}</strong></div>
+    <div class="detail-item"><span>Estado</span>${statusBadge(expense.estado)}</div>
+    <div class="detail-item"><span>Versión / prórrogas</span><strong>V${expense.version} · ${expense.prorrogas}</strong></div>
+    <div class="detail-item detail-item--full"><span>Descripción</span><strong>${escapeHtml(expense.descripcion)}</strong></div>
+    <div class="detail-item detail-item--full"><span>Decisiones</span><div class="decision-history">${renderDecisionDetails(expense)}</div></div>
   </div>`;
   dialog.showModal();
+}
+
+function renderDecisionDetails(expense) {
+  if (!expense.decisiones.length) return '<span class="muted">Aún no hay decisiones.</span>';
+  return expense.decisiones.map(item => `<div class="decision-row"><strong>${escapeHtml(item.rol)}</strong><span class="badge ${item.decision === "APROBADO" ? "badge--approved" : "badge--rejected"}">${escapeHtml(item.decision)}</span>${item.motivo ? `<p>${escapeHtml(item.motivo)}</p>` : ""}</div>`).join("");
+}
+
+function openEditExpense(numero) {
+  const expense = expenses.find(item => item.numero === numero);
+  if (!expense || !expense.puedeEditar) return;
+  document.getElementById("editExpenseNumber").value = expense.numero;
+  document.getElementById("editExpenseVersion").value = expense.version;
+  document.getElementById("editExpenseLabel").textContent = `Egreso #${expense.numero} · Versión ${expense.version}`;
+  document.getElementById("editExpenseProvider").value = expense.proveedor;
+  document.getElementById("editExpenseAmount").value = expense.monto;
+  document.getElementById("editExpenseCategory").value = expense.categoria;
+  document.getElementById("editExpenseDescription").value = expense.descripcion;
+  document.getElementById("editExpenseDeadline").value = expense.fechaLimite;
+  document.getElementById("editExpenseDeadline").min = localDateInputValue(new Date());
+  resetMessage(document.getElementById("editExpenseMessage"));
+  document.getElementById("editExpenseDialog").showModal();
+}
+
+async function submitExpenseEdit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.getElementById("editExpenseMessage");
+  const button = form.querySelector('[type="submit"]');
+  resetMessage(message);
+  if (!form.checkValidity()) return form.reportValidity();
+  if (!window.confirm("Editar el egreso iniciará una nueva versión y reiniciará las firmas. ¿Continuar?")) return;
+  setButtonLoading(button, true, "Guardando…");
+  try {
+    const data = await authenticatedRequest("editarEgreso", Object.fromEntries(new FormData(form)));
+    if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible editar el egreso.", "error");
+    document.getElementById("editExpenseDialog").close();
+    showToast(data.mensaje);
+    await loadExpenses();
+  } catch (error) {
+    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function setDefaultDeadline() {
+  const input = document.getElementById("fechaLimite");
+  if (!input) return;
+  const today = new Date();
+  input.min = localDateInputValue(today);
+  if (!input.value) {
+    const deadline = new Date(today);
+    deadline.setDate(deadline.getDate() + 5);
+    input.value = localDateInputValue(deadline);
+  }
+}
+
+function localDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function fillSessionHeader() {
@@ -602,8 +699,9 @@ function formatDateTime(value) {
 }
 
 function statusBadge(status) {
-  const modifier = status === "Pendiente" ? "pending" : status === "Rechazado" ? "rejected" : "approved";
-  return `<span class="badge badge--${modifier}">${escapeHtml(status)}</span>`;
+  const normalized = String(status || "").toUpperCase();
+  const modifier = normalized === "PENDIENTE" ? "pending" : normalized === "RECHAZADO" ? "rejected" : "approved";
+  return `<span class="badge badge--${modifier}">${escapeHtml(normalized)}</span>`;
 }
 
 function formatCurrency(value) {
@@ -654,19 +752,43 @@ async function initializePage() {
   document.querySelectorAll('[data-action="logout"]').forEach(button => button.addEventListener("click", logout));
 
   if (page === "admin") {
-    renderAdminTable();
+    setDefaultDeadline();
     document.getElementById("expenseForm").addEventListener("submit", crearEgreso);
+    document.getElementById("editExpenseForm").addEventListener("submit", submitExpenseEdit);
+    document.getElementById("adminExpenseRows").addEventListener("click", event => {
+      const button = event.target.closest("button[data-edit-expense]");
+      if (button) openEditExpense(button.dataset.editExpense);
+    });
+    const editDialog = document.getElementById("editExpenseDialog");
+    editDialog.addEventListener("click", event => {
+      if (event.target.dataset.action === "close-dialog" || event.target === editDialog) editDialog.close();
+    });
+    try {
+      await loadExpenses();
+    } catch (error) {
+      document.getElementById("adminExpenseRows").innerHTML = '<tr class="loading-row"><td colspan="6">No fue posible cargar los egresos.</td></tr>';
+      showToast("No fue posible cargar los egresos.", true);
+    }
   }
   if (page === "comite") {
-    renderCommittee();
     document.querySelector(".kanban").addEventListener("click", event => {
       const button = event.target.closest("button[data-action]");
-      if (button) handleCommitteeAction(button.dataset.action, button.dataset.id);
+      if (button) handleCommitteeAction(button.dataset.action, button.dataset.id, button);
     });
-    const dialog = document.getElementById("expenseDialog");
-    dialog.addEventListener("click", event => {
-      if (event.target.dataset.action === "close-dialog" || event.target === dialog) dialog.close();
+    document.getElementById("rejectForm").addEventListener("submit", submitRejection);
+    document.querySelectorAll("#expenseDialog, #rejectDialog").forEach(dialog => {
+      dialog.addEventListener("click", event => {
+        if (event.target.dataset.action === "close-dialog" || event.target === dialog) dialog.close();
+      });
     });
+    try {
+      await loadExpenses();
+    } catch (error) {
+      ["pendingList", "approvedList", "historyList"].forEach(id => {
+        document.getElementById(id).innerHTML = '<div class="empty-column">No fue posible cargar los egresos.</div>';
+      });
+      showToast("No fue posible cargar los egresos.", true);
+    }
   }
   if (page === "perfil") {
     document.getElementById("profileForm").addEventListener("submit", updateProfile);

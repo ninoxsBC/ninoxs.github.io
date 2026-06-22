@@ -6,7 +6,7 @@
   <meta name="description" content="Panel de aprobación del Comité de la Comunidad Ralún">
   <title>Panel Comité | Egresos Ralún</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="js/app.js?v=20260620-2" defer></script>
+  <script src="js/app.js?v=20260621-egresos" defer></script>
 </head>
 <body data-page="comite">
   <header class="app-header">
@@ -45,6 +45,18 @@
   <dialog id="expenseDialog" class="expense-dialog">
     <div class="dialog-heading"><div><span class="eyebrow">Detalle de solicitud</span><h2 id="dialogTitle">Egreso</h2></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Cerrar">×</button></div>
     <div id="dialogContent"></div>
+  </dialog>
+  <dialog id="rejectDialog" class="expense-dialog">
+    <form id="rejectForm" novalidate>
+      <div class="dialog-heading"><div><span class="eyebrow">Decisión definitiva</span><h2>Rechazar egreso</h2><p id="rejectExpenseLabel" class="muted"></p></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Cerrar">×</button></div>
+      <div class="dialog-form">
+        <input id="rejectExpenseNumber" name="numeroEgreso" type="hidden">
+        <input id="rejectExpenseVersion" name="version" type="hidden">
+        <div class="field field--full"><label for="rejectReason">Motivo del rechazo</label><textarea id="rejectReason" name="motivo" rows="4" minlength="5" maxlength="1000" placeholder="Explica el motivo para que el Administrador pueda corregir el egreso" required></textarea><small>Esta decisión no podrá modificarse.</small></div>
+        <div id="rejectMessage" class="form-message field--full" role="status"></div>
+      </div>
+      <div class="dialog-actions"><button class="button button--ghost" type="button" data-action="close-dialog">Cancelar</button><button class="button button--danger" type="submit">Confirmar rechazo</button></div>
+    </form>
   </dialog>
   <div id="toastRegion" class="toast-region" aria-live="polite"></div>
 </body>
