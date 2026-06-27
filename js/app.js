@@ -2,7 +2,7 @@
 
 // Punto único de configuración para la API de Google Apps Script.
 const API_CONFIG = Object.freeze({
-  baseUrl: "https://script.google.com/macros/s/AKfycbxkC9ZLneuPn_zQyomW1RzZZQwaEjXy5ZjGXdlWVOZVhwD-JCWm9Wb70QdoVwVS13Qm/exec",
+  baseUrl: "https://script.google.com/macros/s/AKfycbzFRS9ZUcBA-zGwvxImVgB-MkLwwFVxpzpnZjy_OizJjkpHpNJRDSJHl4yodoKw8NXy/exec",
   timeoutMs: 90000
 });
 
@@ -287,9 +287,14 @@ async function crearEgreso(event) {
   }
   setButtonLoading(button, true, "Creando…");
   try {
-    const data = await authenticatedRequest("crearEgreso", Object.fromEntries(new FormData(form)));
+    const detalles = collectPaymentDetails("paymentRows");
+    if (!detalles.length) return showFormMessage(message, "Agrega al menos un concepto de pago.", "error");
+    const payload = Object.fromEntries(new FormData(form));
+    payload.detalles = JSON.stringify(detalles);
+    const data = await authenticatedRequest("crearEgreso", payload);
     if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible crear el egreso.", "error");
     form.reset();
+    renderPaymentRows("paymentRows", "paymentTotal", [{}]);
     setDefaultDeadline();
     showFormMessage(message, data.mensaje, "success");
     await loadExpenses();
@@ -389,13 +394,15 @@ function openExpenseDialog(expense) {
   const dialog = document.getElementById("expenseDialog");
   document.getElementById("dialogTitle").textContent = `Egreso #${expense.numero}`;
   document.getElementById("dialogContent").innerHTML = `<div class="detail-grid">
-    <div class="detail-item"><span>Proveedor</span><strong>${escapeHtml(expense.proveedor)}</strong></div>
+    <div class="detail-item"><span>Beneficiario</span><strong>${escapeHtml(expense.proveedor)}</strong></div>
     <div class="detail-item"><span>Monto</span><strong>${formatCurrency(expense.monto)}</strong></div>
     <div class="detail-item"><span>Categoría</span><strong>${escapeHtml(expense.categoria)}</strong></div>
+    <div class="detail-item"><span>Forma de pago</span><strong>${escapeHtml(expense.metodoPago || "No registrada")}</strong></div>
     <div class="detail-item"><span>Fecha límite</span><strong>${formatDate(expense.fechaLimite)}</strong></div>
     <div class="detail-item"><span>Estado</span>${statusBadge(expense.estado)}</div>
     <div class="detail-item"><span>Versión / prórrogas</span><strong>V${expense.version} · ${expense.prorrogas}</strong></div>
-    <div class="detail-item detail-item--full"><span>Descripción</span><strong>${escapeHtml(expense.descripcion)}</strong></div>
+    <div class="detail-item detail-item--full"><span>Conceptos de pago</span><div class="payment-detail-list">${renderPaymentDetails(expense.detalles)}</div></div>
+    ${expense.pdfUrl ? `<div class="detail-item detail-item--full"><span>Comprobante final</span><a class="button button--ghost document-link" href="${escapeHtml(expense.pdfUrl)}" target="_blank" rel="noopener">Abrir PDF</a></div>` : ""}
     <div class="detail-item detail-item--full"><span>Decisiones</span><div class="decision-history">${renderDecisionDetails(expense)}</div></div>
   </div>`;
   dialog.showModal();
@@ -413,10 +420,10 @@ function openEditExpense(numero) {
   document.getElementById("editExpenseVersion").value = expense.version;
   document.getElementById("editExpenseLabel").textContent = `Egreso #${expense.numero} · Versión ${expense.version}`;
   document.getElementById("editExpenseProvider").value = expense.proveedor;
-  document.getElementById("editExpenseAmount").value = expense.monto;
   document.getElementById("editExpenseCategory").value = expense.categoria;
-  document.getElementById("editExpenseDescription").value = expense.descripcion;
   document.getElementById("editExpenseDeadline").value = expense.fechaLimite;
+  document.getElementById("editExpensePaymentMethod").value = expense.metodoPago || "";
+  renderPaymentRows("editPaymentRows", "editPaymentTotal", expense.detalles?.length ? expense.detalles : [{ concepto: expense.descripcion, monto: expense.monto }]);
   document.getElementById("editExpenseDeadline").min = localDateInputValue(new Date());
   resetMessage(document.getElementById("editExpenseMessage"));
   document.getElementById("editExpenseDialog").showModal();
@@ -432,7 +439,11 @@ async function submitExpenseEdit(event) {
   if (!window.confirm("Editar el egreso iniciará una nueva versión y reiniciará las firmas. ¿Continuar?")) return;
   setButtonLoading(button, true, "Guardando…");
   try {
-    const data = await authenticatedRequest("editarEgreso", Object.fromEntries(new FormData(form)));
+    const detalles = collectPaymentDetails("editPaymentRows");
+    if (!detalles.length) return showFormMessage(message, "Agrega al menos un concepto de pago.", "error");
+    const payload = Object.fromEntries(new FormData(form));
+    payload.detalles = JSON.stringify(detalles);
+    const data = await authenticatedRequest("editarEgreso", payload);
     if (data.estado !== "OK") return showFormMessage(message, data.mensaje || "No fue posible editar el egreso.", "error");
     document.getElementById("editExpenseDialog").close();
     showToast(data.mensaje);
@@ -442,6 +453,67 @@ async function submitExpenseEdit(event) {
   } finally {
     setButtonLoading(button, false);
   }
+}
+
+function createPaymentRow(detail = {}) {
+  const row = document.createElement("div");
+  row.className = "payment-row";
+  row.innerHTML = `
+    <div class="field"><label>Descripción del pago</label><input class="payment-concept" type="text" maxlength="300" placeholder="Ej.: Mantención ascensor" required></div>
+    <div class="field"><label>N.º documento</label><input class="payment-document" type="text" maxlength="100" placeholder="Orden, factura o documento" required></div>
+    <div class="field"><label>Comprobante de pago</label><input class="payment-receipt" type="text" maxlength="100" placeholder="N.º de operación" required></div>
+    <div class="field"><label>Monto</label><div class="input-prefix"><span>$</span><input class="payment-amount" type="number" min="1" max="999999999" step="1" placeholder="0" required></div></div>
+    <button class="icon-button payment-remove" type="button" data-remove-payment aria-label="Eliminar concepto" title="Eliminar concepto">×</button>`;
+  row.querySelector(".payment-concept").value = detail.concepto || "";
+  row.querySelector(".payment-document").value = detail.numeroDocumento || "";
+  row.querySelector(".payment-receipt").value = detail.comprobantePago || "";
+  row.querySelector(".payment-amount").value = Number(detail.monto) > 0 ? Number(detail.monto) : "";
+  return row;
+}
+
+function renderPaymentRows(containerId, totalId, details) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.replaceChildren(...(details?.length ? details : [{}]).map(createPaymentRow));
+  updatePaymentTotal(container, totalId);
+}
+
+function collectPaymentDetails(containerId) {
+  const container = document.getElementById(containerId);
+  return Array.from(container.querySelectorAll(".payment-row")).map(row => ({
+    concepto: row.querySelector(".payment-concept").value.trim(),
+    numeroDocumento: row.querySelector(".payment-document").value.trim(),
+    comprobantePago: row.querySelector(".payment-receipt").value.trim(),
+    monto: Number(row.querySelector(".payment-amount").value)
+  }));
+}
+
+function updatePaymentTotal(container, totalId) {
+  const total = Array.from(container.querySelectorAll(".payment-amount")).reduce((sum, input) => sum + (Number(input.value) || 0), 0);
+  document.getElementById(totalId).textContent = formatCurrency(total);
+}
+
+function handlePaymentRowsClick(event) {
+  const addButton = event.target.closest("[data-add-payment]");
+  if (addButton) {
+    const editing = addButton.dataset.addPayment === "edit";
+    const container = document.getElementById(editing ? "editPaymentRows" : "paymentRows");
+    container.append(createPaymentRow());
+    updatePaymentTotal(container, editing ? "editPaymentTotal" : "paymentTotal");
+    container.lastElementChild.querySelector(".payment-concept").focus();
+    return;
+  }
+  const removeButton = event.target.closest("[data-remove-payment]");
+  if (!removeButton) return;
+  const container = removeButton.closest(".payment-rows");
+  if (container.children.length === 1) return showToast("El egreso debe conservar al menos un concepto.", true);
+  removeButton.closest(".payment-row").remove();
+  updatePaymentTotal(container, container.id === "editPaymentRows" ? "editPaymentTotal" : "paymentTotal");
+}
+
+function renderPaymentDetails(details = []) {
+  if (!details.length) return '<span class="muted">Sin detalle registrado.</span>';
+  return details.map(item => `<div class="payment-detail-row"><div><strong>${escapeHtml(item.concepto)}</strong><span>Documento: ${escapeHtml(item.numeroDocumento || "—")} · Comprobante: ${escapeHtml(item.comprobantePago || "—")}</span></div><strong>${formatCurrency(item.monto)}</strong></div>`).join("");
 }
 
 function setDefaultDeadline() {
@@ -754,8 +826,16 @@ async function initializePage() {
 
   if (page === "admin") {
     setDefaultDeadline();
+    renderPaymentRows("paymentRows", "paymentTotal", [{}]);
     document.getElementById("expenseForm").addEventListener("submit", crearEgreso);
     document.getElementById("editExpenseForm").addEventListener("submit", submitExpenseEdit);
+    document.addEventListener("click", handlePaymentRowsClick);
+    document.addEventListener("input", event => {
+      const container = event.target.closest(".payment-rows");
+      if (container && event.target.matches(".payment-amount")) {
+        updatePaymentTotal(container, container.id === "editPaymentRows" ? "editPaymentTotal" : "paymentTotal");
+      }
+    });
     document.getElementById("adminExpenseRows").addEventListener("click", event => {
       const button = event.target.closest("button[data-edit-expense]");
       if (button) openEditExpense(button.dataset.editExpense);

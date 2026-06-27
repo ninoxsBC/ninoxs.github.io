@@ -6,7 +6,7 @@
   <meta name="description" content="Administración de egresos de la Comunidad Ralún">
   <title>Administración | Egresos Ralún</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="js/app.js?v=20260621-correos" defer></script>
+  <script src="js/app.js?v=20260624-documentos" defer></script>
 </head>
 <body data-page="admin">
   <header class="app-header">
@@ -37,11 +37,15 @@
       <div class="panel-heading"><div><h2>Crear nuevo egreso</h2><p>Completa los antecedentes de la solicitud.</p></div><span class="panel-icon">＋</span></div>
       <form id="expenseForm" class="expense-form" novalidate>
         <div class="field"><label for="numeroEgreso">Número egreso</label><input id="numeroEgreso" type="text" value="Automático al guardar" disabled></div>
-        <div class="field field--span-2"><label for="proveedor">Proveedor</label><input id="proveedor" name="proveedor" type="text" maxlength="120" placeholder="Nombre o razón social" required></div>
-        <div class="field"><label for="monto">Monto</label><div class="input-prefix"><span>$</span><input id="monto" name="monto" type="number" min="1" max="999999999" step="1" placeholder="0" required></div></div>
+        <div class="field field--span-2"><label for="proveedor">Beneficiario</label><input id="proveedor" name="proveedor" type="text" maxlength="120" placeholder="Nombre o razón social" required></div>
         <div class="field"><label for="categoria">Categoría</label><select id="categoria" name="categoria" required><option value="">Seleccionar</option><option>Mantención</option><option>Servicios básicos</option><option>Administración</option><option>Mejoras</option><option>Otros</option></select></div>
         <div class="field"><label for="fechaLimite">Fecha límite</label><input id="fechaLimite" name="fechaLimite" type="date" required></div>
-        <div class="field field--full"><label for="descripcion">Descripción</label><textarea id="descripcion" name="descripcion" rows="3" minlength="5" maxlength="1000" placeholder="Describe el motivo del egreso" required></textarea></div>
+        <div class="field"><label for="metodoPago">Forma de pago</label><select id="metodoPago" name="metodoPago" required><option value="">Seleccionar</option><option>Transferencia</option><option>Cheque</option><option>Cargo a la cuenta</option><option>Efectivo</option></select></div>
+        <div class="payment-details field--full">
+          <div class="payment-details__heading"><div><h3>Conceptos de pago</h3><p>Agrega una fila por cada documento o concepto pagado.</p></div><button class="button button--ghost" type="button" data-add-payment="create">＋ Agregar concepto</button></div>
+          <div id="paymentRows" class="payment-rows"></div>
+          <div class="payment-total"><span>Total del egreso</span><strong id="paymentTotal">$0</strong></div>
+        </div>
         <div id="expenseMessage" class="form-message field--full" role="status" aria-live="polite"></div>
         <div class="form-actions field--full"><button class="button button--primary" type="submit">Crear egreso <span>→</span></button></div>
       </form>
@@ -62,11 +66,15 @@
       <div class="dialog-form">
         <input id="editExpenseNumber" name="numeroEgreso" type="hidden">
         <input id="editExpenseVersion" name="version" type="hidden">
-        <div class="field field--full"><label for="editExpenseProvider">Proveedor</label><input id="editExpenseProvider" name="proveedor" type="text" maxlength="120" required></div>
-        <div class="field"><label for="editExpenseAmount">Monto</label><input id="editExpenseAmount" name="monto" type="number" min="1" step="1" required></div>
+        <div class="field field--full"><label for="editExpenseProvider">Beneficiario</label><input id="editExpenseProvider" name="proveedor" type="text" maxlength="120" required></div>
         <div class="field"><label for="editExpenseCategory">Categoría</label><select id="editExpenseCategory" name="categoria" required><option>Mantención</option><option>Servicios básicos</option><option>Administración</option><option>Mejoras</option><option>Otros</option></select></div>
-        <div class="field field--full"><label for="editExpenseDescription">Descripción</label><textarea id="editExpenseDescription" name="descripcion" rows="3" minlength="5" maxlength="1000" required></textarea></div>
         <div class="field"><label for="editExpenseDeadline">Fecha límite</label><input id="editExpenseDeadline" name="fechaLimite" type="date" required></div>
+        <div class="field field--full"><label for="editExpensePaymentMethod">Forma de pago</label><select id="editExpensePaymentMethod" name="metodoPago" required><option value="">Seleccionar</option><option>Transferencia</option><option>Cheque</option><option>Cargo a la cuenta</option><option>Efectivo</option></select></div>
+        <div class="payment-details field--full">
+          <div class="payment-details__heading"><div><h3>Conceptos de pago</h3><p>La nueva versión conservará este detalle para auditoría.</p></div><button class="button button--ghost" type="button" data-add-payment="edit">＋ Agregar concepto</button></div>
+          <div id="editPaymentRows" class="payment-rows"></div>
+          <div class="payment-total"><span>Total del egreso</span><strong id="editPaymentTotal">$0</strong></div>
+        </div>
         <div id="editExpenseMessage" class="form-message field--full" role="status"></div>
       </div>
       <div class="dialog-actions"><button class="button button--ghost" type="button" data-action="close-dialog">Cancelar</button><button class="button button--primary" type="submit">Crear nueva versión</button></div>
