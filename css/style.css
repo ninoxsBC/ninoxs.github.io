@@ -126,6 +126,9 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-lineca
 .payment-details__heading .button { min-height: 34px; padding: 0 12px; font-size: 11px; }
 .payment-rows { display: grid; gap: 10px; padding: 12px; }
 .payment-row { position: relative; display: grid; grid-template-columns: 1fr; gap: 12px; border: 1px solid #e3e8ef; border-radius: 10px; padding: 14px 46px 14px 14px; background: #fff; }
+.payment-file-field { grid-column: 1 / -1; }
+.file-hint { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.file-hint a { color: var(--blue); font-weight: 700; text-decoration: none; }
 .payment-remove { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; color: var(--red); background: var(--red-soft); }
 .payment-total { display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 13px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .payment-total strong { color: var(--navy); font-size: 18px; }

@@ -2,12 +2,13 @@
 
 // Punto único de configuración para la API de Google Apps Script.
 const API_CONFIG = Object.freeze({
-  baseUrl: "https://script.google.com/macros/s/AKfycbzFRS9ZUcBA-zGwvxImVgB-MkLwwFVxpzpnZjy_OizJjkpHpNJRDSJHl4yodoKw8NXy/exec",
+  baseUrl: "https://script.google.com/macros/s/AKfycbxyNHy95lEIHy5l8e1CNQZm-f82dpvvM1AICIPV1DcdV887q1BPvn0dwOfBJDqeTpcF/exec",
   timeoutMs: 90000
 });
 
 const SIGNERS = ["Secretario", "Presidenta", "Tesorero"];
 const USER_ROLES = ["Administrador", "Secretario", "Presidenta", "Tesorero", "GestorUsuarios"];
+const MAX_PAYMENT_PDF_BYTES = 10 * 1024 * 1024;
 const ROLE_LABELS = Object.freeze({
   Administrador: "Administrador de egresos",
   Secretario: "Secretario",
@@ -287,7 +288,7 @@ async function crearEgreso(event) {
   }
   setButtonLoading(button, true, "Creando…");
   try {
-    const detalles = collectPaymentDetails("paymentRows");
+    const detalles = await collectPaymentDetails("paymentRows");
     if (!detalles.length) return showFormMessage(message, "Agrega al menos un concepto de pago.", "error");
     const payload = Object.fromEntries(new FormData(form));
     payload.detalles = JSON.stringify(detalles);
@@ -299,7 +300,7 @@ async function crearEgreso(event) {
     showFormMessage(message, data.mensaje, "success");
     await loadExpenses();
   } catch (error) {
-    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+    showFormMessage(message, error.message || "No fue posible conectar con el servidor.", "error");
   } finally {
     setButtonLoading(button, false);
   }
@@ -378,7 +379,7 @@ async function submitRejection(event) {
     showToast(data.mensaje);
     await loadExpenses();
   } catch (error) {
-    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+    showFormMessage(message, error.message || "No fue posible conectar con el servidor.", "error");
   } finally {
     setButtonLoading(button, false);
   }
@@ -439,7 +440,7 @@ async function submitExpenseEdit(event) {
   if (!window.confirm("Editar el egreso iniciará una nueva versión y reiniciará las firmas. ¿Continuar?")) return;
   setButtonLoading(button, true, "Guardando…");
   try {
-    const detalles = collectPaymentDetails("editPaymentRows");
+    const detalles = await collectPaymentDetails("editPaymentRows");
     if (!detalles.length) return showFormMessage(message, "Agrega al menos un concepto de pago.", "error");
     const payload = Object.fromEntries(new FormData(form));
     payload.detalles = JSON.stringify(detalles);
@@ -449,7 +450,7 @@ async function submitExpenseEdit(event) {
     showToast(data.mensaje);
     await loadExpenses();
   } catch (error) {
-    showFormMessage(message, "No fue posible conectar con el servidor.", "error");
+    showFormMessage(message, error.message || "No fue posible conectar con el servidor.", "error");
   } finally {
     setButtonLoading(button, false);
   }
@@ -463,11 +464,15 @@ function createPaymentRow(detail = {}) {
     <div class="field"><label>N.º documento</label><input class="payment-document" type="text" maxlength="100" placeholder="Orden, factura o documento" required></div>
     <div class="field"><label>Comprobante de pago</label><input class="payment-receipt" type="text" maxlength="100" placeholder="N.º de operación" required></div>
     <div class="field"><label>Monto</label><div class="input-prefix"><span>$</span><input class="payment-amount" type="number" min="1" max="999999999" step="1" placeholder="0" required></div></div>
+    <div class="field payment-file-field"><label>PDF comprobante</label><input class="payment-file" type="file" accept="application/pdf,.pdf" ${detail.comprobantePdfUrl ? "" : "required"}><span class="file-hint">${detail.comprobantePdfUrl ? `<a href="${escapeHtml(detail.comprobantePdfUrl)}" target="_blank" rel="noopener">PDF actual</a> · subir otro si deseas reemplazarlo` : "Adjunta el PDF de este concepto"}</span></div>
     <button class="icon-button payment-remove" type="button" data-remove-payment aria-label="Eliminar concepto" title="Eliminar concepto">×</button>`;
   row.querySelector(".payment-concept").value = detail.concepto || "";
   row.querySelector(".payment-document").value = detail.numeroDocumento || "";
   row.querySelector(".payment-receipt").value = detail.comprobantePago || "";
   row.querySelector(".payment-amount").value = Number(detail.monto) > 0 ? Number(detail.monto) : "";
+  row.dataset.comprobantePdfId = detail.comprobantePdfId || "";
+  row.dataset.comprobantePdfUrl = detail.comprobantePdfUrl || "";
+  row.dataset.comprobantePdfNombre = detail.comprobantePdfNombre || "";
   return row;
 }
 
@@ -478,14 +483,38 @@ function renderPaymentRows(containerId, totalId, details) {
   updatePaymentTotal(container, totalId);
 }
 
-function collectPaymentDetails(containerId) {
+async function collectPaymentDetails(containerId) {
   const container = document.getElementById(containerId);
-  return Array.from(container.querySelectorAll(".payment-row")).map(row => ({
-    concepto: row.querySelector(".payment-concept").value.trim(),
-    numeroDocumento: row.querySelector(".payment-document").value.trim(),
-    comprobantePago: row.querySelector(".payment-receipt").value.trim(),
-    monto: Number(row.querySelector(".payment-amount").value)
-  }));
+  const details = [];
+  for (const row of Array.from(container.querySelectorAll(".payment-row"))) {
+    const file = row.querySelector(".payment-file").files[0];
+    if (file && file.size > MAX_PAYMENT_PDF_BYTES) throw new Error("Cada PDF de comprobante debe pesar 10 MB o menos.");
+    if (file && file.type && file.type !== "application/pdf") throw new Error("Los comprobantes deben ser archivos PDF.");
+    details.push({
+      concepto: row.querySelector(".payment-concept").value.trim(),
+      numeroDocumento: row.querySelector(".payment-document").value.trim(),
+      comprobantePago: row.querySelector(".payment-receipt").value.trim(),
+      monto: Number(row.querySelector(".payment-amount").value),
+      comprobantePdfId: row.dataset.comprobantePdfId || "",
+      comprobantePdfUrl: row.dataset.comprobantePdfUrl || "",
+      comprobantePdfNombre: row.dataset.comprobantePdfNombre || "",
+      comprobantePdfArchivo: file ? {
+        nombre: file.name,
+        tipo: file.type || "application/pdf",
+        base64: await readFileAsBase64(file)
+      } : null
+    });
+  }
+  return details;
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(new Error("No fue posible leer el PDF de comprobante."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function updatePaymentTotal(container, totalId) {
@@ -513,7 +542,7 @@ function handlePaymentRowsClick(event) {
 
 function renderPaymentDetails(details = []) {
   if (!details.length) return '<span class="muted">Sin detalle registrado.</span>';
-  return details.map(item => `<div class="payment-detail-row"><div><strong>${escapeHtml(item.concepto)}</strong><span>Documento: ${escapeHtml(item.numeroDocumento || "—")} · Comprobante: ${escapeHtml(item.comprobantePago || "—")}</span></div><strong>${formatCurrency(item.monto)}</strong></div>`).join("");
+  return details.map(item => `<div class="payment-detail-row"><div><strong>${escapeHtml(item.concepto)}</strong><span>Documento: ${escapeHtml(item.numeroDocumento || "—")} · Comprobante: ${escapeHtml(item.comprobantePago || "—")}</span>${item.comprobantePdfUrl ? `<a class="document-link" href="${escapeHtml(item.comprobantePdfUrl)}" target="_blank" rel="noopener">Abrir PDF comprobante</a>` : ""}</div><strong>${formatCurrency(item.monto)}</strong></div>`).join("");
 }
 
 function setDefaultDeadline() {
