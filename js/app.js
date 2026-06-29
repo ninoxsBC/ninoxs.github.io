@@ -2,7 +2,7 @@
 
 // Punto único de configuración para la API de Google Apps Script.
 const API_CONFIG = Object.freeze({
-  baseUrl: "https://script.google.com/macros/s/AKfycbyUDaiFhAiChbvyCpBoZ8amZ_Mkj_xZamYAoD434cRvPgKA1SkrMH72h6DkpIDCBN5d/exec",
+  baseUrl: "https://script.google.com/macros/s/AKfycbyW0JhX1Z-F6PNTxSx6YcoLLunNCBGuosdixVUH0sLlfkRCpxJlgs-FivrQNXz9UxHx/exec",
   timeoutMs: 90000
 });
 
