@@ -2,7 +2,7 @@
 
 // Punto único de configuración para la API de Google Apps Script.
 const API_CONFIG = Object.freeze({
-  baseUrl: "https://script.google.com/macros/s/AKfycbyijF3hq8BD3f2D4xdSGng5DX9cTgCj_Kea-46OAG9CZhdT-o99c_-8VydAFCYCK_uM/exec",
+  baseUrl: "https://script.google.com/macros/s/AKfycbyUDaiFhAiChbvyCpBoZ8amZ_Mkj_xZamYAoD434cRvPgKA1SkrMH72h6DkpIDCBN5d/exec",
   timeoutMs: 90000
 });
 
@@ -21,16 +21,13 @@ let expenses = [];
 let managedUsers = [];
 
 async function requestApi(params, signal) {
-  const body = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => body.set(key, value));
-
   const response = await fetch(API_CONFIG.baseUrl, {
     method: "POST",
     headers: {
       Accept: "application/json",
-      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+      "Content-Type": "text/plain;charset=UTF-8"
     },
-    body,
+    body: JSON.stringify(params),
     cache: "no-store",
     redirect: "follow",
     signal
